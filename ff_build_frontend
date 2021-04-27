@@ -1,0 +1,5 @@
+#!/bin/bash
+
+yarn install --pure-lockfile
+# yarn start will watch for file changes and rebuild
+yarn start

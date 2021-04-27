@@ -1,5 +1,5 @@
 import React, { FC } from 'react';
-import { css, cx } from 'emotion';
+import { css, cx } from '@emotion/css';
 import { useTheme } from '@grafana/ui';
 
 export interface BrandComponentProps {
@@ -8,7 +8,7 @@ export interface BrandComponentProps {
 }
 
 const LoginLogo: FC<BrandComponentProps> = ({ className }) => {
-  return <img className={className} src="public/img/grafana_icon.svg" alt="Grafana" />;
+  return <img className={className} src="public/img/redwolf_favicon.png" alt="Grafana" />;
 };
 
 const LoginBackground: FC<BrandComponentProps> = ({ className, children }) => {
@@ -22,7 +22,7 @@ const LoginBackground: FC<BrandComponentProps> = ({ className, children }) => {
 };
 
 const MenuLogo: FC<BrandComponentProps> = ({ className }) => {
-  return <img className={className} src="public/img/grafana_icon.svg" alt="Grafana" />;
+  return <img className={className} src="public/img/redwolf_favicon.png" alt="Grafana" />;
 };
 
 const LoginBoxBackground = () => {
