@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"path"
+	"sort"
 	"strings"
 	"time"
 
@@ -18,7 +19,6 @@ import (
 	"github.com/grafana/grafana/pkg/models"
 	"github.com/grafana/grafana/pkg/plugins"
 	"github.com/grafana/grafana/pkg/setting"
-	"github.com/grafana/grafana/pkg/tsdb"
 	"github.com/grafana/grafana/pkg/util/errutil"
 	"github.com/opentracing/opentracing-go"
 	"golang.org/x/net/context/ctxhttp"
@@ -26,8 +26,9 @@ import (
 
 // ApplicationInsightsDatasource calls the application insights query API.
 type ApplicationInsightsDatasource struct {
-	httpClient *http.Client
-	dsInfo     *models.DataSource
+	httpClient    *http.Client
+	dsInfo        *models.DataSource
+	pluginManager plugins.Manager
 }
 
 // ApplicationInsightsQuery is the model that holds the information
@@ -48,20 +49,23 @@ type ApplicationInsightsQuery struct {
 	aggregation string
 }
 
-func (e *ApplicationInsightsDatasource) executeTimeSeriesQuery(ctx context.Context, originalQueries []*tsdb.Query, timeRange *tsdb.TimeRange) (*tsdb.Response, error) {
-	result := &tsdb.Response{
-		Results: map[string]*tsdb.QueryResult{},
+// nolint:staticcheck // plugins.DataQueryResult deprecated
+func (e *ApplicationInsightsDatasource) executeTimeSeriesQuery(ctx context.Context,
+	originalQueries []plugins.DataSubQuery,
+	timeRange plugins.DataTimeRange) (plugins.DataResponse, error) {
+	result := plugins.DataResponse{
+		Results: map[string]plugins.DataQueryResult{},
 	}
 
 	queries, err := e.buildQueries(originalQueries, timeRange)
 	if err != nil {
-		return nil, err
+		return plugins.DataResponse{}, err
 	}
 
 	for _, query := range queries {
 		queryRes, err := e.executeQuery(ctx, query)
 		if err != nil {
-			return nil, err
+			return plugins.DataResponse{}, err
 		}
 		result.Results[query.RefID] = queryRes
 	}
@@ -69,7 +73,8 @@ func (e *ApplicationInsightsDatasource) executeTimeSeriesQuery(ctx context.Conte
 	return result, nil
 }
 
-func (e *ApplicationInsightsDatasource) buildQueries(queries []*tsdb.Query, timeRange *tsdb.TimeRange) ([]*ApplicationInsightsQuery, error) {
+func (e *ApplicationInsightsDatasource) buildQueries(queries []plugins.DataSubQuery,
+	timeRange plugins.DataTimeRange) ([]*ApplicationInsightsQuery, error) {
 	applicationInsightsQueries := []*ApplicationInsightsQuery{}
 	startTime, err := timeRange.ParseFrom()
 	if err != nil {
@@ -98,8 +103,11 @@ func (e *ApplicationInsightsDatasource) buildQueries(queries []*tsdb.Query, time
 		azureURL := fmt.Sprintf("metrics/%s", insightsJSONModel.MetricName)
 		timeGrain := insightsJSONModel.TimeGrain
 		timeGrains := insightsJSONModel.AllowedTimeGrainsMs
-		if timeGrain == "auto" {
-			timeGrain, err = setAutoTimeGrain(query.IntervalMs, timeGrains)
+
+		// Previous versions of the query model don't specify a time grain, so we
+		// need to fallback to a default value
+		if timeGrain == "auto" || timeGrain == "" {
+			timeGrain, err = setAutoTimeGrain(query.IntervalMS, timeGrains)
 			if err != nil {
 				return nil, err
 			}
@@ -121,7 +129,7 @@ func (e *ApplicationInsightsDatasource) buildQueries(queries []*tsdb.Query, time
 			params.Add("segment", strings.Join(insightsJSONModel.Dimensions, ","))
 		}
 		applicationInsightsQueries = append(applicationInsightsQueries, &ApplicationInsightsQuery{
-			RefID:       query.RefId,
+			RefID:       query.RefID,
 			ApiURL:      azureURL,
 			Params:      params,
 			Alias:       insightsJSONModel.Alias,
@@ -130,14 +138,15 @@ func (e *ApplicationInsightsDatasource) buildQueries(queries []*tsdb.Query, time
 			aggregation: insightsJSONModel.Aggregation,
 			dimensions:  insightsJSONModel.Dimensions,
 		})
-
 	}
 
 	return applicationInsightsQueries, nil
 }
 
-func (e *ApplicationInsightsDatasource) executeQuery(ctx context.Context, query *ApplicationInsightsQuery) (*tsdb.QueryResult, error) {
-	queryResult := &tsdb.QueryResult{Meta: simplejson.New(), RefId: query.RefID}
+// nolint:staticcheck // plugins.DataQueryResult deprecated
+func (e *ApplicationInsightsDatasource) executeQuery(ctx context.Context, query *ApplicationInsightsQuery) (
+	plugins.DataQueryResult, error) {
+	queryResult := plugins.DataQueryResult{Meta: simplejson.New(), RefID: query.RefID}
 
 	req, err := e.createRequest(ctx, e.dsInfo)
 	if err != nil {
@@ -172,20 +181,24 @@ func (e *ApplicationInsightsDatasource) executeQuery(ctx context.Context, query 
 	}
 
 	body, err := ioutil.ReadAll(res.Body)
-	defer res.Body.Close()
+	defer func() {
+		if err := res.Body.Close(); err != nil {
+			azlog.Warn("Failed to close response body", "err", err)
+		}
+	}()
 	if err != nil {
-		return nil, err
+		return plugins.DataQueryResult{}, err
 	}
 
 	if res.StatusCode/100 != 2 {
 		azlog.Debug("Request failed", "status", res.Status, "body", string(body))
-		return nil, fmt.Errorf("Request failed status: %v", res.Status)
+		return plugins.DataQueryResult{}, fmt.Errorf("request failed, status: %s", res.Status)
 	}
 
 	mr := MetricsResult{}
 	err = json.Unmarshal(body, &mr)
 	if err != nil {
-		return nil, err
+		return plugins.DataQueryResult{}, err
 	}
 
 	frame, err := InsightsMetricsResultToFrame(mr, query.metricName, query.aggregation, query.dimensions)
@@ -193,15 +206,18 @@ func (e *ApplicationInsightsDatasource) executeQuery(ctx context.Context, query 
 		queryResult.Error = err
 		return queryResult, nil
 	}
-	queryResult.Dataframes = tsdb.NewDecodedDataFrames(data.Frames{frame})
+
+	applyInsightsMetricAlias(frame, query.Alias)
+
+	queryResult.Dataframes = plugins.NewDecodedDataFrames(data.Frames{frame})
 	return queryResult, nil
 }
 
 func (e *ApplicationInsightsDatasource) createRequest(ctx context.Context, dsInfo *models.DataSource) (*http.Request, error) {
 	// find plugin
-	plugin, ok := plugins.DataSources[dsInfo.Type]
-	if !ok {
-		return nil, errors.New("Unable to find datasource plugin Azure Application Insights")
+	plugin := e.pluginManager.GetDataSource(dsInfo.Type)
+	if plugin == nil {
+		return nil, errors.New("unable to find datasource plugin Azure Application Insights")
 	}
 
 	cloudName := dsInfo.JsonData.Get("cloudName").MustString("azuremonitor")
@@ -232,7 +248,8 @@ func (e *ApplicationInsightsDatasource) createRequest(ctx context.Context, dsInf
 	return req, nil
 }
 
-func (e *ApplicationInsightsDatasource) getPluginRoute(plugin *plugins.DataSourcePlugin, cloudName string) (*plugins.AppPluginRoute, string, error) {
+func (e *ApplicationInsightsDatasource) getPluginRoute(plugin *plugins.DataSourcePlugin, cloudName string) (
+	*plugins.AppPluginRoute, string, error) {
 	pluginRouteName := "appinsights"
 
 	if cloudName == "chinaazuremonitor" {
@@ -240,7 +257,6 @@ func (e *ApplicationInsightsDatasource) getPluginRoute(plugin *plugins.DataSourc
 	}
 
 	var pluginRoute *plugins.AppPluginRoute
-
 	for _, route := range plugin.Routes {
 		if route.Path == pluginRouteName {
 			pluginRoute = route
@@ -249,4 +265,62 @@ func (e *ApplicationInsightsDatasource) getPluginRoute(plugin *plugins.DataSourc
 	}
 
 	return pluginRoute, pluginRouteName, nil
+}
+
+// formatApplicationInsightsLegendKey builds the legend key or timeseries name
+// Alias patterns like {{metric}} are replaced with the appropriate data values.
+func formatApplicationInsightsLegendKey(alias string, metricName string, labels data.Labels) string {
+	// Could be a collision problem if there were two keys that varied only in case, but I don't think that would happen in azure.
+	lowerLabels := data.Labels{}
+	for k, v := range labels {
+		lowerLabels[strings.ToLower(k)] = v
+	}
+	keys := make([]string, 0, len(labels))
+	for k := range lowerLabels {
+		keys = append(keys, k)
+	}
+	keys = sort.StringSlice(keys)
+
+	result := legendKeyFormat.ReplaceAllFunc([]byte(alias), func(in []byte) []byte {
+		metaPartName := strings.Replace(string(in), "{{", "", 1)
+		metaPartName = strings.Replace(metaPartName, "}}", "", 1)
+		metaPartName = strings.ToLower(strings.TrimSpace(metaPartName))
+
+		switch metaPartName {
+		case "metric":
+			return []byte(metricName)
+		case "dimensionname", "groupbyname":
+			return []byte(keys[0])
+		case "dimensionvalue", "groupbyvalue":
+			return []byte(lowerLabels[keys[0]])
+		}
+
+		if v, ok := lowerLabels[metaPartName]; ok {
+			return []byte(v)
+		}
+
+		return in
+	})
+
+	return string(result)
+}
+
+func applyInsightsMetricAlias(frame *data.Frame, alias string) {
+	if alias == "" {
+		return
+	}
+
+	for _, field := range frame.Fields {
+		if field.Type() == data.FieldTypeTime || field.Type() == data.FieldTypeNullableTime {
+			continue
+		}
+
+		displayName := formatApplicationInsightsLegendKey(alias, field.Name, field.Labels)
+
+		if field.Config == nil {
+			field.Config = &data.FieldConfig{}
+		}
+
+		field.Config.DisplayName = displayName
+	}
 }

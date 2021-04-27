@@ -1,4 +1,4 @@
-import React, { FormEvent, useState, useCallback } from 'react';
+import React, { FormEvent, useState, useCallback, useEffect } from 'react';
 import {
   TimeZone,
   isDateTime,
@@ -21,6 +21,7 @@ interface Props {
   onApply: (range: TimeRange) => void;
   timeZone?: TimeZone;
   roundup?: boolean;
+  isReversed?: boolean;
 }
 
 interface InputState {
@@ -30,12 +31,18 @@ interface InputState {
 
 const errorMessage = 'Please enter a past date or "now"';
 
-export const TimeRangeForm: React.FC<Props> = props => {
-  const { value, isFullscreen = false, timeZone, roundup } = props;
+export const TimeRangeForm: React.FC<Props> = (props) => {
+  const { value, isFullscreen = false, timeZone, onApply: onApplyFromProps, isReversed } = props;
 
   const [from, setFrom] = useState<InputState>(valueToState(value.raw.from, false, timeZone));
   const [to, setTo] = useState<InputState>(valueToState(value.raw.to, true, timeZone));
   const [isOpen, setOpen] = useState(false);
+
+  // Synchronize internal state with external value
+  useEffect(() => {
+    setFrom(valueToState(value.raw.from, false, timeZone));
+    setTo(valueToState(value.raw.to, true, timeZone));
+  }, [value.raw.from, value.raw.to, timeZone]);
 
   const onOpen = useCallback(
     (event: FormEvent<HTMLElement>) => {
@@ -55,16 +62,20 @@ export const TimeRangeForm: React.FC<Props> = props => {
     [isFullscreen, onOpen]
   );
 
-  const onApply = useCallback(() => {
-    if (to.invalid || from.invalid) {
-      return;
-    }
+  const onApply = useCallback(
+    (e: FormEvent<HTMLButtonElement>) => {
+      e.preventDefault();
+      if (to.invalid || from.invalid) {
+        return;
+      }
 
-    const raw: RawTimeRange = { from: from.value, to: to.value };
-    const timeRange = rangeUtil.convertRawToRange(raw, timeZone);
+      const raw: RawTimeRange = { from: from.value, to: to.value };
+      const timeRange = rangeUtil.convertRawToRange(raw, timeZone);
 
-    props.onApply(timeRange);
-  }, [from, to, roundup, timeZone]);
+      onApplyFromProps(timeRange);
+    },
+    [from.invalid, from.value, onApplyFromProps, timeZone, to.invalid, to.value]
+  );
 
   const onChange = useCallback(
     (from: DateTime, to: DateTime) => {
@@ -80,9 +91,9 @@ export const TimeRangeForm: React.FC<Props> = props => {
     <>
       <Field label="From" invalid={from.invalid} error={errorMessage}>
         <Input
-          onClick={event => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
           onFocus={onFocus}
-          onChange={event => setFrom(eventToState(event, false, timeZone))}
+          onChange={(event) => setFrom(eventToState(event, false, timeZone))}
           addonAfter={icon}
           aria-label="TimePicker from field"
           value={from.value}
@@ -90,9 +101,9 @@ export const TimeRangeForm: React.FC<Props> = props => {
       </Field>
       <Field label="To" invalid={to.invalid} error={errorMessage}>
         <Input
-          onClick={event => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
           onFocus={onFocus}
-          onChange={event => setTo(eventToState(event, true, timeZone))}
+          onChange={(event) => setTo(eventToState(event, true, timeZone))}
           addonAfter={icon}
           aria-label="TimePicker to field"
           value={to.value}
@@ -111,6 +122,7 @@ export const TimeRangeForm: React.FC<Props> = props => {
         onClose={() => setOpen(false)}
         onChange={onChange}
         timeZone={timeZone}
+        isReversed={isReversed}
       />
     </>
   );

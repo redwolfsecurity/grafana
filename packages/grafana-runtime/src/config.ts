@@ -1,4 +1,4 @@
-import merge from 'lodash/merge';
+import { merge } from 'lodash';
 import { getTheme } from '@grafana/ui';
 import {
   BuildInfo,
@@ -6,9 +6,10 @@ import {
   FeatureToggles,
   GrafanaConfig,
   GrafanaTheme,
-  GrafanaThemeType,
   LicenseInfo,
   PanelPluginMeta,
+  systemDateFormats,
+  SystemDateFormatSettings,
 } from '@grafana/data';
 
 export class GrafanaBootConfig implements GrafanaConfig {
@@ -34,6 +35,7 @@ export class GrafanaBootConfig implements GrafanaConfig {
   authProxyEnabled = false;
   exploreEnabled = false;
   ldapEnabled = false;
+  sigV4AuthEnabled = false;
   samlEnabled = false;
   autoAssignOrg = true;
   verifyEmailEnabled = false;
@@ -49,18 +51,31 @@ export class GrafanaBootConfig implements GrafanaConfig {
   theme: GrafanaTheme;
   pluginsToPreload: string[] = [];
   featureToggles: FeatureToggles = {
-    transformations: false,
-    expressions: false,
-    newEdit: false,
+    live: false,
     meta: false,
-    datasourceInsights: false,
-    reportGrid: false,
+    ngalert: false,
+    panelLibrary: false,
+    reportVariables: false,
+    accesscontrol: false,
   };
   licenseInfo: LicenseInfo = {} as LicenseInfo;
   rendererAvailable = false;
+  http2Enabled = false;
+  dateFormats?: SystemDateFormatSettings;
+  sentry = {
+    enabled: false,
+    dsn: '',
+    customEndpoint: '',
+    sampleRate: 1,
+  };
+  marketplaceUrl?: string;
+  expressionsEnabled = false;
+  customTheme?: any;
+  awsAllowedAuthProviders: string[] = [];
+  awsAssumeRoleEnabled = false;
 
   constructor(options: GrafanaBootConfig) {
-    this.theme = options.bootData.user.lightTheme ? getTheme(GrafanaThemeType.Light) : getTheme(GrafanaThemeType.Dark);
+    this.theme = getTheme(options.bootData.user.lightTheme ? 'light' : 'dark');
 
     const defaults = {
       datasources: {},
@@ -83,6 +98,10 @@ export class GrafanaBootConfig implements GrafanaConfig {
     };
 
     merge(this, defaults, options);
+
+    if (this.dateFormats) {
+      systemDateFormats.update(this.dateFormats);
+    }
   }
 }
 

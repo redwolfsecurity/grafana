@@ -1,15 +1,17 @@
-import _ from 'lodash';
+import { map } from 'lodash';
 import LogAnalyticsQuerystringBuilder from '../log_analytics/querystring_builder';
 import ResponseParser from './response_parser';
 import { AzureMonitorQuery, AzureDataSourceJsonData, AzureLogsVariable, AzureQueryType } from '../types';
 import {
+  DataQueryRequest,
   DataQueryResponse,
   ScopedVars,
   DataSourceInstanceSettings,
-  QueryResultMeta,
   MetricFindValue,
 } from '@grafana/data';
 import { getBackendSrv, getTemplateSrv, DataSourceWithBackend } from '@grafana/runtime';
+import { Observable, from } from 'rxjs';
+import { mergeMap } from 'rxjs/operators';
 
 export default class AzureLogAnalyticsDatasource extends DataSourceWithBackend<
   AzureMonitorQuery,
@@ -18,9 +20,16 @@ export default class AzureLogAnalyticsDatasource extends DataSourceWithBackend<
   url: string;
   baseUrl: string;
   applicationId: string;
+
+  /**
+   * @deprecated
+   * TODO: Which one of these values should be used? Was there a migration?
+   * */
+  logAnalyticsSubscriptionId: string;
+  subscriptionId: string;
+
   azureMonitorUrl: string;
   defaultOrFirstWorkspace: string;
-  subscriptionId: string;
   cache: Map<string, any>;
 
   constructor(private instanceSettings: DataSourceInstanceSettings<AzureDataSourceJsonData>) {
@@ -83,7 +92,7 @@ export default class AzureLogAnalyticsDatasource extends DataSourceWithBackend<
     const response = await this.getWorkspaceList(subscription);
 
     return (
-      _.map(response.data.value, (val: any) => {
+      map(response.data.value, (val: any) => {
         return { text: val.name, value: val.properties.customerId };
       }) || []
     );
@@ -135,12 +144,23 @@ export default class AzureLogAnalyticsDatasource extends DataSourceWithBackend<
     };
   }
 
+  /**
+   * Augment the results with links back to the azure console
+   */
+  query(request: DataQueryRequest<AzureMonitorQuery>): Observable<DataQueryResponse> {
+    return super.query(request).pipe(
+      mergeMap((res: DataQueryResponse) => {
+        return from(this.processResponse(res));
+      })
+    );
+  }
+
   async processResponse(res: DataQueryResponse): Promise<DataQueryResponse> {
     if (res.data) {
       for (const df of res.data) {
         const encodedQuery = df.meta?.custom?.encodedQuery;
         if (encodedQuery && encodedQuery.length > 0) {
-          const url = await this.buildDeepLink(df.meta);
+          const url = await this.buildDeepLink(df.meta.custom);
           if (url?.length) {
             for (const field of df.fields) {
               field.config.links = [
@@ -158,10 +178,10 @@ export default class AzureLogAnalyticsDatasource extends DataSourceWithBackend<
     return res;
   }
 
-  private async buildDeepLink(meta: QueryResultMeta) {
-    const base64Enc = encodeURIComponent(meta.custom.encodedQuery);
-    const workspaceId = meta.custom.workspace;
-    const subscription = meta.custom.subscription;
+  private async buildDeepLink(customMeta: Record<string, any>) {
+    const base64Enc = encodeURIComponent(customMeta.encodedQuery);
+    const workspaceId = customMeta.workspace;
+    const subscription = customMeta.subscription;
 
     const details = await this.getWorkspaceDetails(workspaceId);
     if (!details.workspace || !details.resourceGroup) {
@@ -200,7 +220,13 @@ export default class AzureLogAnalyticsDatasource extends DataSourceWithBackend<
     };
   }
 
-  metricFindQuery(query: string): Promise<MetricFindValue[]> {
+  /**
+   * This is named differently than DataSourceApi.metricFindQuery
+   * because it's not exposed to Grafana like the main AzureMonitorDataSource.
+   * And some of the azure internal data sources return null in this function, which the
+   * external interface does not support
+   */
+  metricFindQueryInternal(query: string): Promise<MetricFindValue[]> {
     const workspacesQuery = query.match(/^workspaces\(\)/i);
     if (workspacesQuery) {
       return this.getWorkspaces(this.subscriptionId);
@@ -217,10 +243,10 @@ export default class AzureLogAnalyticsDatasource extends DataSourceWithBackend<
       const promises = this.doQueries(queries);
 
       return Promise.all(promises)
-        .then(results => {
+        .then((results) => {
           return new ResponseParser(results).parseToVariables();
         })
-        .catch(err => {
+        .catch((err) => {
           if (
             err.error &&
             err.error.data &&
@@ -233,7 +259,7 @@ export default class AzureLogAnalyticsDatasource extends DataSourceWithBackend<
             throw { message: err.error.data.error.message };
           }
         });
-    }) as Promise<MetricFindValue[]>; // ??
+    }) as Promise<MetricFindValue[]>;
   }
 
   private buildQuery(query: string, options: any, workspace: any) {
@@ -266,7 +292,7 @@ export default class AzureLogAnalyticsDatasource extends DataSourceWithBackend<
       return value;
     }
 
-    const quotedValues = _.map(value, val => {
+    const quotedValues = map(value, (val) => {
       if (typeof value === 'number') {
         return value;
       }
@@ -298,14 +324,14 @@ export default class AzureLogAnalyticsDatasource extends DataSourceWithBackend<
 
     const promises = this.doQueries(queries);
 
-    return Promise.all(promises).then(results => {
+    return Promise.all(promises).then((results) => {
       const annotations = new ResponseParser(results).transformToAnnotations(options);
       return annotations;
     });
   }
 
   doQueries(queries: any[]) {
-    return _.map(queries, query => {
+    return map(queries, (query) => {
       return this.doRequest(query.url)
         .then((result: any) => {
           return {

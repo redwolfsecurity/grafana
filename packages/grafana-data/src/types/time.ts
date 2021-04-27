@@ -1,4 +1,4 @@
-import { DateTime } from '../datetime/moment_wrapper';
+import { dateTime, DateTime } from '../datetime/moment_wrapper';
 
 export interface RawTimeRange {
   from: DateTime | string;
@@ -9,6 +9,15 @@ export interface TimeRange {
   from: DateTime;
   to: DateTime;
   raw: RawTimeRange;
+}
+
+/**
+ * Type to describe relative time to now in seconds.
+ * @internal
+ */
+export interface RelativeTimeRange {
+  from: number;
+  to: number;
 }
 
 export interface AbsoluteTimeRange {
@@ -42,8 +51,12 @@ export type TimeFragment = string | DateTime;
 
 export const TIME_FORMAT = 'YYYY-MM-DD HH:mm:ss';
 
-export const DefaultTimeRange: TimeRange = {
-  from: {} as DateTime,
-  to: {} as DateTime,
-  raw: { from: '6h', to: 'now' },
-};
+export function getDefaultTimeRange(): TimeRange {
+  const now = dateTime();
+
+  return {
+    from: dateTime(now).subtract(6, 'hour'),
+    to: now,
+    raw: { from: 'now-6h', to: 'now' },
+  };
+}

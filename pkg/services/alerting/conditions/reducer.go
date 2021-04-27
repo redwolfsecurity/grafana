@@ -6,7 +6,7 @@ import (
 	"sort"
 
 	"github.com/grafana/grafana/pkg/components/null"
-	"github.com/grafana/grafana/pkg/tsdb"
+	"github.com/grafana/grafana/pkg/plugins"
 )
 
 // queryReducer reduces a timeseries to a nullable float
@@ -17,7 +17,9 @@ type queryReducer struct {
 	Type string
 }
 
-func (s *queryReducer) Reduce(series *tsdb.TimeSeries) null.Float {
+//nolint: gocyclo
+//nolint: staticcheck // plugins.DataTimeSeries deprecated
+func (s *queryReducer) Reduce(series plugins.DataTimeSeries) null.Float {
 	if len(series.Points) == 0 {
 		return null.FloatFromPtr(nil)
 	}
@@ -36,7 +38,7 @@ func (s *queryReducer) Reduce(series *tsdb.TimeSeries) null.Float {
 			}
 		}
 		if validPointsCount > 0 {
-			value = value / float64(validPointsCount)
+			value /= float64(validPointsCount)
 		}
 	case "sum":
 		for _, point := range series.Points {
@@ -125,7 +127,8 @@ func newSimpleReducer(t string) *queryReducer {
 	return &queryReducer{Type: t}
 }
 
-func calculateDiff(series *tsdb.TimeSeries, allNull bool, value float64, fn func(float64, float64) float64) (bool, float64) {
+//nolint: staticcheck // plugins.* deprecated
+func calculateDiff(series plugins.DataTimeSeries, allNull bool, value float64, fn func(float64, float64) float64) (bool, float64) {
 	var (
 		points = series.Points
 		first  float64

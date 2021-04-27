@@ -1,9 +1,12 @@
-import _ from 'lodash';
+import { each, map } from 'lodash';
 import { DashboardModel } from '../state/DashboardModel';
 import { PanelModel } from '../state/PanelModel';
 import { GRID_CELL_HEIGHT, GRID_CELL_VMARGIN } from 'app/core/constants';
 import { expect } from 'test/lib/common';
 import { DataLinkBuiltInVars } from '@grafana/data';
+import { VariableHide } from '../../variables/types';
+import { config } from 'app/core/config';
+import { getPanelPlugin } from 'app/features/plugins/__mocks__/pluginMocks';
 
 jest.mock('app/core/services/context_srv', () => ({}));
 
@@ -13,6 +16,12 @@ describe('DashboardModel', () => {
     let graph: any;
     let singlestat: any;
     let table: any;
+    let singlestatGauge: any;
+
+    config.panels = {
+      stat: getPanelPlugin({ id: 'stat' }).meta,
+      gauge: getPanelPlugin({ id: 'gauge' }).meta,
+    };
 
     beforeEach(() => {
       model = new DashboardModel({
@@ -48,9 +57,21 @@ describe('DashboardModel', () => {
             type: 'singlestat',
             legend: true,
             thresholds: '10,20,30',
+            colors: ['#FF0000', 'green', 'orange'],
             aliasYAxis: { test: 2 },
             grid: { min: 1, max: 10 },
             targets: [{ refId: 'A' }, {}],
+          },
+          {
+            type: 'singlestat',
+            thresholds: '10,20,30',
+            colors: ['#FF0000', 'green', 'orange'],
+            gauge: {
+              show: true,
+              thresholdMarkers: true,
+              thresholdLabels: false,
+            },
+            grid: { min: 1, max: 10 },
           },
           {
             type: 'table',
@@ -63,7 +84,8 @@ describe('DashboardModel', () => {
 
       graph = model.panels[0];
       singlestat = model.panels[1];
-      table = model.panels[2];
+      singlestatGauge = model.panels[2];
+      table = model.panels[3];
     });
 
     it('should have title', () => {
@@ -83,8 +105,16 @@ describe('DashboardModel', () => {
       expect(graph.type).toBe('graph');
     });
 
-    it('single stat panel should have two thresholds', () => {
-      expect(singlestat.thresholds).toBe('20,30');
+    it('singlestat panel should be mapped to stat panel', () => {
+      expect(singlestat.type).toBe('stat');
+      expect(singlestat.fieldConfig.defaults.thresholds.steps[2].value).toBe(30);
+      expect(singlestat.fieldConfig.defaults.thresholds.steps[0].color).toBe('#FF0000');
+    });
+
+    it('singlestat panel should be mapped to gauge panel', () => {
+      expect(singlestatGauge.type).toBe('gauge');
+      expect(singlestatGauge.options.showThresholdMarkers).toBe(true);
+      expect(singlestatGauge.options.showThresholdLabels).toBe(false);
     });
 
     it('queries without refId should get it', () => {
@@ -132,7 +162,7 @@ describe('DashboardModel', () => {
     });
 
     it('dashboard schema version should be set to latest', () => {
-      expect(model.schemaVersion).toBe(26);
+      expect(model.schemaVersion).toBe(28);
     });
 
     it('graph thresholds should be migrated', () => {
@@ -627,7 +657,7 @@ describe('DashboardModel', () => {
     });
   });
 
-  describe('when migrating variables with old tags format', () => {
+  describe('when migrating variables with tags', () => {
     let model: DashboardModel;
 
     beforeEach(() => {
@@ -637,6 +667,9 @@ describe('DashboardModel', () => {
             {
               type: 'query',
               tags: ['Africa', 'America', 'Asia', 'Europe'],
+              tagsQuery: 'select datacenter from x',
+              tagValuesQuery: 'select value from x where datacenter = xyz',
+              useTags: true,
             },
             {
               type: 'query',
@@ -659,6 +692,9 @@ describe('DashboardModel', () => {
                 value: ['server-us-east', 'server-us-central', 'server-us-west', 'server-eu-east', 'server-eu-west'],
               },
               tags: ['Africa', 'America', 'Asia', 'Europe'],
+              tagsQuery: 'select datacenter from x',
+              tagValuesQuery: 'select value from x where datacenter = xyz',
+              useTags: true,
             },
             {
               type: 'query',
@@ -668,6 +704,9 @@ describe('DashboardModel', () => {
                 { text: 'Asia', selected: false },
                 { text: 'Europe', selected: false },
               ],
+              tagsQuery: 'select datacenter from x',
+              tagValuesQuery: 'select value from x where datacenter = xyz',
+              useTags: true,
             },
           ],
         },
@@ -678,41 +717,28 @@ describe('DashboardModel', () => {
       expect(model.templating.list.length).toBe(3);
     });
 
-    it('should be migrated with defaults if being out of sync', () => {
-      expect(model.templating.list[0].tags).toEqual([
-        { text: 'Africa', selected: false },
-        { text: 'America', selected: false },
-        { text: 'Asia', selected: false },
-        { text: 'Europe', selected: false },
-      ]);
+    it('should have no tags', () => {
+      expect(model.templating.list[0].tags).toBeUndefined();
+      expect(model.templating.list[1].tags).toBeUndefined();
+      expect(model.templating.list[2].tags).toBeUndefined();
     });
 
-    it('should be migrated with current values if being out of sync', () => {
-      expect(model.templating.list[1].tags).toEqual([
-        { text: 'Africa', selected: false },
-        {
-          text: 'America',
-          selected: true,
-          values: ['server-us-east', 'server-us-central', 'server-us-west'],
-          valuesText: 'server-us-east + server-us-central + server-us-west',
-        },
-        { text: 'Asia', selected: false },
-        {
-          text: 'Europe',
-          selected: true,
-          values: ['server-eu-east', 'server-eu-west'],
-          valuesText: 'server-eu-east + server-eu-west',
-        },
-      ]);
+    it('should have no tagsQuery property', () => {
+      expect(model.templating.list[0].tagsQuery).toBeUndefined();
+      expect(model.templating.list[1].tagsQuery).toBeUndefined();
+      expect(model.templating.list[2].tagsQuery).toBeUndefined();
     });
 
-    it('should not be migrated if being in sync', () => {
-      expect(model.templating.list[2].tags).toEqual([
-        { text: 'Africa', selected: false },
-        { text: 'America', selected: true },
-        { text: 'Asia', selected: false },
-        { text: 'Europe', selected: false },
-      ]);
+    it('should have no tagValuesQuery property', () => {
+      expect(model.templating.list[0].tagValuesQuery).toBeUndefined();
+      expect(model.templating.list[1].tagValuesQuery).toBeUndefined();
+      expect(model.templating.list[2].tagValuesQuery).toBeUndefined();
+    });
+
+    it('should have no useTags property', () => {
+      expect(model.templating.list[0].useTags).toBeUndefined();
+      expect(model.templating.list[1].useTags).toBeUndefined();
+      expect(model.templating.list[2].useTags).toBeUndefined();
     });
   });
 
@@ -798,6 +824,107 @@ describe('DashboardModel', () => {
       expect(reactPanel.options.angular).toBeUndefined();
     });
   });
+
+  describe('when migrating constant variables so they are always hidden', () => {
+    let model: DashboardModel;
+
+    beforeEach(() => {
+      model = new DashboardModel({
+        templating: {
+          list: [
+            {
+              type: 'query',
+              hide: VariableHide.dontHide,
+              datasource: null,
+              allFormat: '',
+            },
+            {
+              type: 'query',
+              hide: VariableHide.hideLabel,
+              datasource: null,
+              allFormat: '',
+            },
+            {
+              type: 'query',
+              hide: VariableHide.hideVariable,
+              datasource: null,
+              allFormat: '',
+            },
+            {
+              type: 'constant',
+              hide: VariableHide.dontHide,
+              query: 'default value',
+              current: { selected: true, text: 'A', value: 'B' },
+              options: [{ selected: true, text: 'A', value: 'B' }],
+              datasource: null,
+              allFormat: '',
+            },
+            {
+              type: 'constant',
+              hide: VariableHide.hideLabel,
+              query: 'default value',
+              current: { selected: true, text: 'A', value: 'B' },
+              options: [{ selected: true, text: 'A', value: 'B' }],
+              datasource: null,
+              allFormat: '',
+            },
+            {
+              type: 'constant',
+              hide: VariableHide.hideVariable,
+              query: 'default value',
+              current: { selected: true, text: 'A', value: 'B' },
+              options: [{ selected: true, text: 'A', value: 'B' }],
+              datasource: null,
+              allFormat: '',
+            },
+          ],
+        },
+      });
+    });
+
+    it('should have six variables after migration', () => {
+      expect(model.templating.list.length).toBe(6);
+    });
+
+    it('should not touch other variable types', () => {
+      expect(model.templating.list[0].hide).toEqual(VariableHide.dontHide);
+      expect(model.templating.list[1].hide).toEqual(VariableHide.hideLabel);
+      expect(model.templating.list[2].hide).toEqual(VariableHide.hideVariable);
+    });
+
+    it('should migrate visible constant variables to textbox variables', () => {
+      expect(model.templating.list[3]).toEqual({
+        type: 'textbox',
+        hide: VariableHide.dontHide,
+        query: 'default value',
+        current: { selected: true, text: 'default value', value: 'default value' },
+        options: [{ selected: true, text: 'default value', value: 'default value' }],
+        datasource: null,
+        allFormat: '',
+      });
+      expect(model.templating.list[4]).toEqual({
+        type: 'textbox',
+        hide: VariableHide.hideLabel,
+        query: 'default value',
+        current: { selected: true, text: 'default value', value: 'default value' },
+        options: [{ selected: true, text: 'default value', value: 'default value' }],
+        datasource: null,
+        allFormat: '',
+      });
+    });
+
+    it('should change current and options for hidden constant variables', () => {
+      expect(model.templating.list[5]).toEqual({
+        type: 'constant',
+        hide: VariableHide.hideVariable,
+        query: 'default value',
+        current: { selected: true, text: 'default value', value: 'default value' },
+        options: [{ selected: true, text: 'default value', value: 'default value' }],
+        datasource: null,
+        allFormat: '',
+      });
+    });
+  });
 });
 
 function createRow(options: any, panelDescriptions: any[]) {
@@ -806,7 +933,7 @@ function createRow(options: any, panelDescriptions: any[]) {
   let { height } = options;
   height = height * PANEL_HEIGHT_STEP;
   const panels: any[] = [];
-  _.each(panelDescriptions, panelDesc => {
+  each(panelDescriptions, (panelDesc) => {
     const panel = { span: panelDesc[0] };
     if (panelDesc.length > 1) {
       //@ts-ignore
@@ -827,7 +954,7 @@ function createRow(options: any, panelDescriptions: any[]) {
 }
 
 function getGridPositions(dashboard: DashboardModel) {
-  return _.map(dashboard.panels, (panel: PanelModel) => {
+  return map(dashboard.panels, (panel: PanelModel) => {
     return panel.gridPos;
   });
 }

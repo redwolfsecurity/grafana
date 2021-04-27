@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import React from 'react';
-import { css } from 'emotion';
+import { css } from '@emotion/css';
 
 import SpanDetail from './SpanDetail';
 import DetailState from './SpanDetail/DetailState';
@@ -21,7 +21,8 @@ import SpanTreeOffset from './SpanTreeOffset';
 import TimelineRow from './TimelineRow';
 import { autoColor, createStyle, Theme, withTheme } from '../Theme';
 
-import { TraceLog, TraceSpan, TraceKeyValuePair, TraceLink } from '@grafana/data';
+import { TraceLog, TraceSpan, TraceKeyValuePair, TraceLink } from '../types/trace';
+import { CreateSpanLink } from './types';
 
 const getStyles = createStyle((theme: Theme) => {
   return {
@@ -76,6 +77,7 @@ type SpanDetailRowProps = {
   processToggle: (spanID: string) => void;
   referencesToggle: (spanID: string) => void;
   warningsToggle: (spanID: string) => void;
+  stackTracesToggle: (spanID: string) => void;
   span: TraceSpan;
   tagsToggle: (spanID: string) => void;
   traceStartTime: number;
@@ -84,6 +86,7 @@ type SpanDetailRowProps = {
   addHoverIndentGuideId: (spanID: string) => void;
   removeHoverIndentGuideId: (spanID: string) => void;
   theme: Theme;
+  createSpanLink?: CreateSpanLink;
 };
 
 export class UnthemedSpanDetailRow extends React.PureComponent<SpanDetailRowProps> {
@@ -106,6 +109,7 @@ export class UnthemedSpanDetailRow extends React.PureComponent<SpanDetailRowProp
       processToggle,
       referencesToggle,
       warningsToggle,
+      stackTracesToggle,
       span,
       tagsToggle,
       traceStartTime,
@@ -114,6 +118,7 @@ export class UnthemedSpanDetailRow extends React.PureComponent<SpanDetailRowProp
       addHoverIndentGuideId,
       removeHoverIndentGuideId,
       theme,
+      createSpanLink,
     } = this.props;
     const styles = getStyles(theme);
     return (
@@ -147,10 +152,12 @@ export class UnthemedSpanDetailRow extends React.PureComponent<SpanDetailRowProp
               processToggle={processToggle}
               referencesToggle={referencesToggle}
               warningsToggle={warningsToggle}
+              stackTracesToggle={stackTracesToggle}
               span={span}
               tagsToggle={tagsToggle}
               traceStartTime={traceStartTime}
               focusSpan={focusSpan}
+              createSpanLink={createSpanLink}
             />
           </div>
         </TimelineRow.Cell>

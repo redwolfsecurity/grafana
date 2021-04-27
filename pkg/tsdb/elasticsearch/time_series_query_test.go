@@ -5,10 +5,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/grafana/grafana/pkg/plugins"
 	es "github.com/grafana/grafana/pkg/tsdb/elasticsearch/client"
+	"github.com/grafana/grafana/pkg/tsdb/interval"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/grafana/grafana/pkg/components/simplejson"
-	"github.com/grafana/grafana/pkg/tsdb"
 	. "github.com/smartystreets/goconvey/convey"
 )
 
@@ -125,6 +127,80 @@ func TestExecuteTimeSeriesQuery(t *testing.T) {
 			avgAgg := sr.Aggs[0].Aggregation.Aggs[1].Aggregation.Aggs[0]
 			So(avgAgg.Key, ShouldEqual, "5")
 			So(avgAgg.Aggregation.Type, ShouldEqual, "avg")
+		})
+
+		Convey("With term agg and order by count metric agg", func() {
+			c := newFakeClient(5)
+			_, err := executeTsdbQuery(c, `{
+				"timeField": "@timestamp",
+				"bucketAggs": [
+					{
+						"type": "terms",
+						"field": "@host",
+						"id": "2",
+						"settings": { "size": "5", "order": "asc", "orderBy": "1"	}
+					},
+					{ "type": "date_histogram", "field": "@timestamp", "id": "3" }
+				],
+				"metrics": [
+					{"type": "count", "id": "1" }
+				]
+			}`, from, to, 15*time.Second)
+			So(err, ShouldBeNil)
+			sr := c.multisearchRequests[0].Requests[0]
+
+			termsAgg := sr.Aggs[0].Aggregation.Aggregation.(*es.TermsAggregation)
+			So(termsAgg.Order["_count"], ShouldEqual, "asc")
+		})
+
+		Convey("With term agg and order by percentiles agg", func() {
+			c := newFakeClient(5)
+			_, err := executeTsdbQuery(c, `{
+				"timeField": "@timestamp",
+				"bucketAggs": [
+					{
+						"type": "terms",
+						"field": "@host",
+						"id": "2",
+						"settings": { "size": "5", "order": "asc", "orderBy": "1[95.0]"	}
+					},
+					{ "type": "date_histogram", "field": "@timestamp", "id": "3" }
+				],
+				"metrics": [
+        {"type": "percentiles", "field": "@value", "id": "1", "settings": { "percents": ["95","99"] } }
+				]
+			}`, from, to, 15*time.Second)
+			So(err, ShouldBeNil)
+			sr := c.multisearchRequests[0].Requests[0]
+
+			orderByAgg := sr.Aggs[0].Aggregation.Aggs[0]
+			So(orderByAgg.Key, ShouldEqual, "1")
+			So(orderByAgg.Aggregation.Type, ShouldEqual, "percentiles")
+		})
+
+		Convey("With term agg and order by extended stats agg", func() {
+			c := newFakeClient(5)
+			_, err := executeTsdbQuery(c, `{
+				"timeField": "@timestamp",
+				"bucketAggs": [
+					{
+						"type": "terms",
+						"field": "@host",
+						"id": "2",
+						"settings": { "size": "5", "order": "asc", "orderBy": "1[std_deviation]"	}
+					},
+					{ "type": "date_histogram", "field": "@timestamp", "id": "3" }
+				],
+				"metrics": [
+        {"type": "extended_stats", "field": "@value", "id": "1", "meta": { "std_deviation": true } }
+				]
+			}`, from, to, 15*time.Second)
+			So(err, ShouldBeNil)
+			sr := c.multisearchRequests[0].Requests[0]
+
+			orderByAgg := sr.Aggs[0].Aggregation.Aggs[0]
+			So(orderByAgg.Key, ShouldEqual, "1")
+			So(orderByAgg.Aggregation.Type, ShouldEqual, "extended_stats")
 		})
 
 		Convey("With term agg and order by term", func() {
@@ -650,6 +726,64 @@ func TestExecuteTimeSeriesQuery(t *testing.T) {
 			So(plAgg.BucketPath, ShouldEqual, "_count")
 		})
 
+		Convey("With serial_diff", func() {
+			c := newFakeClient(5)
+			_, err := executeTsdbQuery(c, `{
+				"timeField": "@timestamp",
+				"bucketAggs": [
+					{ "type": "date_histogram", "field": "@timestamp", "id": "4" }
+				],
+				"metrics": [
+					{ "id": "3", "type": "sum", "field": "@value" },
+					{
+						"id": "2",
+						"type": "serial_diff",
+						"pipelineAgg": "3"
+					}
+				]
+			}`, from, to, 15*time.Second)
+			So(err, ShouldBeNil)
+			sr := c.multisearchRequests[0].Requests[0]
+
+			firstLevel := sr.Aggs[0]
+			So(firstLevel.Key, ShouldEqual, "4")
+			So(firstLevel.Aggregation.Type, ShouldEqual, "date_histogram")
+
+			serialDiffAgg := firstLevel.Aggregation.Aggs[1]
+			So(serialDiffAgg.Key, ShouldEqual, "2")
+			plAgg := serialDiffAgg.Aggregation.Aggregation.(*es.PipelineAggregation)
+			So(plAgg.BucketPath, ShouldEqual, "3")
+		})
+
+		Convey("With serial_diff doc count", func() {
+			c := newFakeClient(5)
+			_, err := executeTsdbQuery(c, `{
+				"timeField": "@timestamp",
+				"bucketAggs": [
+					{ "type": "date_histogram", "field": "@timestamp", "id": "4" }
+				],
+				"metrics": [
+					{ "id": "3", "type": "count", "field": "select field" },
+					{
+						"id": "2",
+						"type": "serial_diff",
+						"pipelineAgg": "3"
+					}
+				]
+			}`, from, to, 15*time.Second)
+			So(err, ShouldBeNil)
+			sr := c.multisearchRequests[0].Requests[0]
+
+			firstLevel := sr.Aggs[0]
+			So(firstLevel.Key, ShouldEqual, "4")
+			So(firstLevel.Aggregation.Type, ShouldEqual, "date_histogram")
+
+			serialDiffAgg := firstLevel.Aggregation.Aggs[0]
+			So(serialDiffAgg.Key, ShouldEqual, "2")
+			plAgg := serialDiffAgg.Aggregation.Aggregation.(*es.PipelineAggregation)
+			So(plAgg.BucketPath, ShouldEqual, "_count")
+		})
+
 		Convey("With bucket_script", func() {
 			c := newFakeClient(5)
 			_, err := executeTsdbQuery(c, `{
@@ -723,6 +857,83 @@ func TestExecuteTimeSeriesQuery(t *testing.T) {
 	})
 }
 
+func TestSettingsCasting(t *testing.T) {
+	from := time.Date(2018, 5, 15, 17, 50, 0, 0, time.UTC)
+	to := time.Date(2018, 5, 15, 17, 55, 0, 0, time.UTC)
+
+	t.Run("Correctly transforms moving_average settings", func(t *testing.T) {
+		c := newFakeClient(5)
+		_, err := executeTsdbQuery(c, `{
+			"timeField": "@timestamp",
+			"bucketAggs": [
+				{ "type": "date_histogram", "field": "@timestamp", "id": "2" }
+			],
+			"metrics": [
+				{ "id": "1", "type": "average", "field": "@value" },
+				{
+					"id": "3",
+					"type": "moving_avg",
+					"field": "1",
+					"pipelineAgg": "1",
+					"settings": {
+						"model": "holt_winters",
+						"window": "10",
+						"predict": "5",
+						"settings": {
+							"alpha": "0.5",
+							"beta": "0.7",
+							"gamma": "SHOULD NOT CHANGE",
+							"period": "4"
+						}
+					}
+				}
+			]
+		}`, from, to, 15*time.Second)
+		assert.Nil(t, err)
+		sr := c.multisearchRequests[0].Requests[0]
+
+		movingAvgSettings := sr.Aggs[0].Aggregation.Aggs[1].Aggregation.Aggregation.(*es.PipelineAggregation).Settings
+
+		assert.Equal(t, 10., movingAvgSettings["window"])
+		assert.Equal(t, 5., movingAvgSettings["predict"])
+
+		modelSettings := movingAvgSettings["settings"].(map[string]interface{})
+
+		assert.Equal(t, .5, modelSettings["alpha"])
+		assert.Equal(t, .7, modelSettings["beta"])
+		assert.Equal(t, "SHOULD NOT CHANGE", modelSettings["gamma"])
+		assert.Equal(t, 4., modelSettings["period"])
+	})
+
+	t.Run("Correctly transforms serial_diff settings", func(t *testing.T) {
+		c := newFakeClient(5)
+		_, err := executeTsdbQuery(c, `{
+			"timeField": "@timestamp",
+			"bucketAggs": [
+				{ "type": "date_histogram", "field": "@timestamp", "id": "2" }
+			],
+			"metrics": [
+				{ "id": "1", "type": "average", "field": "@value" },
+				{
+					"id": "3",
+					"type": "serial_diff",
+					"field": "1",
+					"pipelineAgg": "1",
+					"settings": {
+						"lag": "1"
+					}
+				}
+			]
+		}`, from, to, 15*time.Second)
+		assert.Nil(t, err)
+		sr := c.multisearchRequests[0].Requests[0]
+
+		serialDiffSettings := sr.Aggs[0].Aggregation.Aggs[1].Aggregation.Aggregation.(*es.PipelineAggregation).Settings
+
+		assert.Equal(t, 1., serialDiffSettings["lag"])
+	})
+}
+
 type fakeClient struct {
 	version             int
 	timeField           string
@@ -765,13 +976,13 @@ func (c *fakeClient) MultiSearch() *es.MultiSearchRequestBuilder {
 	return c.builder
 }
 
-func newTsdbQuery(body string) (*tsdb.TsdbQuery, error) {
+func newDataQuery(body string) (plugins.DataQuery, error) {
 	json, err := simplejson.NewJson([]byte(body))
 	if err != nil {
-		return nil, err
+		return plugins.DataQuery{}, err
 	}
-	return &tsdb.TsdbQuery{
-		Queries: []*tsdb.Query{
+	return plugins.DataQuery{
+		Queries: []plugins.DataSubQuery{
 			{
 				Model: json,
 			},
@@ -779,22 +990,25 @@ func newTsdbQuery(body string) (*tsdb.TsdbQuery, error) {
 	}, nil
 }
 
-func executeTsdbQuery(c es.Client, body string, from, to time.Time, minInterval time.Duration) (*tsdb.Response, error) {
+// nolint:staticcheck // plugins.DataQueryResult deprecated
+func executeTsdbQuery(c es.Client, body string, from, to time.Time, minInterval time.Duration) (
+	plugins.DataResponse, error) {
 	json, err := simplejson.NewJson([]byte(body))
 	if err != nil {
-		return nil, err
+		return plugins.DataResponse{}, err
 	}
 	fromStr := fmt.Sprintf("%d", from.UnixNano()/int64(time.Millisecond))
 	toStr := fmt.Sprintf("%d", to.UnixNano()/int64(time.Millisecond))
-	tsdbQuery := &tsdb.TsdbQuery{
-		Queries: []*tsdb.Query{
+	timeRange := plugins.NewDataTimeRange(fromStr, toStr)
+	tsdbQuery := plugins.DataQuery{
+		Queries: []plugins.DataSubQuery{
 			{
 				Model: json,
 			},
 		},
-		TimeRange: tsdb.NewTimeRange(fromStr, toStr),
+		TimeRange: &timeRange,
 	}
-	query := newTimeSeriesQuery(c, tsdbQuery, tsdb.NewIntervalCalculator(&tsdb.IntervalOptions{MinInterval: minInterval}))
+	query := newTimeSeriesQuery(c, tsdbQuery, interval.NewCalculator(interval.CalculatorOptions{MinInterval: minInterval}))
 	return query.execute()
 }
 
@@ -807,6 +1021,7 @@ func TestTimeSeriesQueryParser(t *testing.T) {
 				"timeField": "@timestamp",
 				"query": "@metric:cpu",
 				"alias": "{{@hostname}} {{metric}}",
+        "interval": "10m",
 				"metrics": [
 					{
 						"field": "@value",
@@ -852,7 +1067,7 @@ func TestTimeSeriesQueryParser(t *testing.T) {
 					}
 				]
 			}`
-			tsdbQuery, err := newTsdbQuery(body)
+			tsdbQuery, err := newDataQuery(body)
 			So(err, ShouldBeNil)
 			queries, err := p.parse(tsdbQuery)
 			So(err, ShouldBeNil)
@@ -863,6 +1078,7 @@ func TestTimeSeriesQueryParser(t *testing.T) {
 			So(q.TimeField, ShouldEqual, "@timestamp")
 			So(q.RawQuery, ShouldEqual, "@metric:cpu")
 			So(q.Alias, ShouldEqual, "{{@hostname}} {{metric}}")
+			So(q.Interval, ShouldEqual, "10m")
 
 			So(q.Metrics, ShouldHaveLength, 2)
 			So(q.Metrics[0].Field, ShouldEqual, "@value")

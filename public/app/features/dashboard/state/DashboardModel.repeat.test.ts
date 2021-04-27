@@ -1,7 +1,8 @@
-import _ from 'lodash';
+import { compact, flattenDeep, map, uniq } from 'lodash';
 import { DashboardModel } from '../state/DashboardModel';
 import { expect } from 'test/lib/common';
 import { getDashboardModel } from '../../../../test/helpers/getDashboardModel';
+import { PanelModel } from './PanelModel';
 
 jest.mock('app/core/services/context_srv', () => ({}));
 
@@ -277,7 +278,7 @@ describe('given dashboard with row repeat and panel repeat in horizontal directi
   });
 
   it('should panels in self row', () => {
-    const panelTypes = _.map(dashboard.panels, 'type');
+    const panelTypes = map(dashboard.panels, 'type');
     expect(panelTypes).toEqual([
       'row',
       'graph',
@@ -356,7 +357,7 @@ describe('given dashboard with row repeat', () => {
   });
 
   it('should not repeat only row', () => {
-    const panelTypes = _.map(dashboard.panels, 'type');
+    const panelTypes = map(dashboard.panels, 'type');
     expect(panelTypes).toEqual(['row', 'graph', 'graph', 'row', 'graph', 'graph', 'row', 'graph']);
   });
 
@@ -372,8 +373,8 @@ describe('given dashboard with row repeat', () => {
       apps: { text: 'se2', value: 'se2' },
     });
 
-    const scopedVars = _.compact(
-      _.map(dashboard.panels, panel => {
+    const scopedVars = compact(
+      map(dashboard.panels, (panel) => {
         return panel.scopedVars ? panel.scopedVars.apps.value : null;
       })
     );
@@ -405,7 +406,7 @@ describe('given dashboard with row repeat', () => {
     dashboard = getDashboardModel(dashboardJSON);
     dashboard.processRepeats();
 
-    const panelTypes = _.map(dashboard.panels, 'type');
+    const panelTypes = map(dashboard.panels, 'type');
     expect(panelTypes).toEqual(['row', 'row', 'row', 'graph']);
     expect(dashboard.panels[0].panels).toHaveLength(2);
     expect(dashboard.panels[1].panels).toHaveLength(2);
@@ -447,7 +448,7 @@ describe('given dashboard with row repeat', () => {
     dashboard = getDashboardModel(dashboardJSON);
     dashboard.processRepeats();
 
-    const panelTypes = _.map(dashboard.panels, 'type');
+    const panelTypes = map(dashboard.panels, 'type');
     expect(panelTypes).toEqual([
       'row',
       'graph',
@@ -494,17 +495,17 @@ describe('given dashboard with row repeat', () => {
     dashboard = getDashboardModel(dashboardJSON);
     dashboard.processRepeats();
 
-    const panelIds = _.flattenDeep(
-      _.map(dashboard.panels, panel => {
+    const panelIds = flattenDeep(
+      map(dashboard.panels, (panel) => {
         let ids = [];
         if (panel.panels && panel.panels.length) {
-          ids = _.map(panel.panels, 'id');
+          ids = map(panel.panels, 'id');
         }
         ids.push(panel.id);
         return ids;
       })
     );
-    expect(panelIds.length).toEqual(_.uniq(panelIds).length);
+    expect(panelIds.length).toEqual(uniq(panelIds).length);
   });
 
   it('should place new panels in proper order', () => {
@@ -517,9 +518,9 @@ describe('given dashboard with row repeat', () => {
     dashboard = getDashboardModel(dashboardJSON);
     dashboard.processRepeats();
 
-    const panelTypes = _.map(dashboard.panels, 'type');
+    const panelTypes = map(dashboard.panels, 'type');
     expect(panelTypes).toEqual(['row', 'graph', 'graph', 'graph', 'row', 'graph', 'graph', 'graph']);
-    const panelYPositions = _.map(dashboard.panels, p => p.gridPos.y);
+    const panelYPositions = map(dashboard.panels, (p) => p.gridPos.y);
     expect(panelYPositions).toEqual([0, 1, 1, 5, 7, 8, 8, 12]);
   });
 });
@@ -572,7 +573,7 @@ describe('given dashboard with row and panel repeat', () => {
   });
 
   it('should repeat row and panels for each row', () => {
-    const panelTypes = _.map(dashboard.panels, 'type');
+    const panelTypes = map(dashboard.panels, 'type');
     expect(panelTypes).toEqual(['row', 'graph', 'graph', 'row', 'graph', 'graph']);
   });
 
@@ -598,7 +599,7 @@ describe('given dashboard with row and panel repeat', () => {
     dashboard = getDashboardModel(dashboardJSON);
     dashboard.processRepeats();
 
-    const panelTypes = _.map(dashboard.panels, 'type');
+    const panelTypes = map(dashboard.panels, 'type');
     expect(panelTypes).toEqual(['row', 'graph', 'graph', 'row', 'graph', 'graph']);
   });
 
@@ -669,5 +670,62 @@ describe('given dashboard with row and panel repeat', () => {
     // toggle row back
     dashboard.toggleRow(dashboard.panels[1]);
     expect(dashboard.panels.length).toBe(4);
+  });
+});
+
+describe('given panel is in view mode', () => {
+  let dashboard: any;
+
+  beforeEach(() => {
+    const dashboardJSON = {
+      panels: [
+        {
+          id: 1,
+          repeat: 'apps',
+          repeatDirection: 'h',
+          gridPos: { x: 0, y: 0, h: 2, w: 24 },
+        },
+      ],
+      templating: {
+        list: [
+          {
+            name: 'apps',
+            current: {
+              text: 'se1, se2, se3',
+              value: ['se1', 'se2', 'se3'],
+            },
+            options: [
+              { text: 'se1', value: 'se1', selected: true },
+              { text: 'se2', value: 'se2', selected: true },
+              { text: 'se3', value: 'se3', selected: true },
+              { text: 'se4', value: 'se4', selected: false },
+            ],
+          },
+        ],
+      },
+    };
+
+    dashboard = getDashboardModel(dashboardJSON);
+    dashboard.initViewPanel(
+      new PanelModel({
+        id: 2,
+        repeat: undefined,
+        repeatDirection: 'h',
+        panels: [
+          {
+            id: 2,
+            repeat: 'apps',
+            repeatDirection: 'h',
+            gridPos: { x: 0, y: 0, h: 2, w: 24 },
+          },
+        ],
+        repeatPanelId: 2,
+      })
+    );
+    dashboard.processRepeats();
+  });
+
+  it('should set correct repeated panel to be in view', () => {
+    expect(dashboard.panels[1].isViewing).toBeTruthy();
   });
 });

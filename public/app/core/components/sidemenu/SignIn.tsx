@@ -1,23 +1,17 @@
 import React, { FC } from 'react';
-import config from 'app/core/config';
-import { connectWithStore } from 'app/core/utils/connectWithReduxStore';
-import { StoreState } from 'app/types';
 import { Icon } from '@grafana/ui';
+import { useLocation } from 'react-router-dom';
+import { getForcedLoginUrl } from './utils';
 
-const getForcedLoginUrl = (url: string) => {
-  const urlObj = new URL(url, config.appUrl);
-  let params = urlObj.searchParams;
-  params.set('forceLogin', 'true');
-  return urlObj.toString();
-};
+export const SignIn: FC<any> = () => {
+  const location = useLocation();
+  const forcedLoginUrl = getForcedLoginUrl(location.pathname + location.search);
 
-export const SignIn: FC<any> = ({ url }) => {
-  const forcedLoginUrl = getForcedLoginUrl(url);
   return (
     <div className="sidemenu-item">
       <a href={forcedLoginUrl} className="sidemenu-link" target="_self">
         <span className="icon-circle sidemenu-icon">
-          <Icon name="sign-in-alt" size="xl" />
+          <Icon name="signout" size="xl" />
         </span>
       </a>
       <a href={forcedLoginUrl} target="_self">
@@ -30,9 +24,3 @@ export const SignIn: FC<any> = ({ url }) => {
     </div>
   );
 };
-
-const mapStateToProps = (state: StoreState) => ({
-  url: state.location.url,
-});
-
-export default connectWithStore(SignIn, mapStateToProps);

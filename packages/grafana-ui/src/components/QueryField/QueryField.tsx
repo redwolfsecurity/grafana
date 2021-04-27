@@ -1,4 +1,4 @@
-import _ from 'lodash';
+import { debounce } from 'lodash';
 import React, { Context } from 'react';
 
 import { Value, Editor as CoreEditor } from 'slate';
@@ -26,7 +26,7 @@ export interface QueryFieldProps {
   // We have both value and local state. This is usually an antipattern but we need to keep local state
   // for perf reasons and also have outside value in for example in Explore redux that is mutable from logs
   // creating a two way binding.
-  query: string | null;
+  query?: string | null;
   onRunQuery?: () => void;
   onBlur?: () => void;
   onChange?: (value: string) => void;
@@ -64,7 +64,7 @@ export class QueryField extends React.PureComponent<QueryFieldProps, QueryFieldS
   constructor(props: QueryFieldProps, context: Context<any>) {
     super(props, context);
 
-    this.runOnChangeDebounced = _.debounce(this.runOnChange, 500);
+    this.runOnChangeDebounced = debounce(this.runOnChange, 500);
 
     const { onTypeahead, cleanText, portalOrigin, onWillApplySuggestion } = props;
 
@@ -80,7 +80,7 @@ export class QueryField extends React.PureComponent<QueryFieldProps, QueryFieldS
       IndentationPlugin(),
       ClipboardPlugin(),
       ...(props.additionalPlugins || []),
-    ].filter(p => p);
+    ].filter((p) => p);
 
     this.state = {
       suggestions: [],
@@ -200,7 +200,7 @@ export class QueryField extends React.PureComponent<QueryFieldProps, QueryFieldS
       <div className={wrapperClassName}>
         <div className="slate-query-field" aria-label={selectors.components.QueryField.container}>
           <Editor
-            ref={editor => (this.editor = editor!)}
+            ref={(editor) => (this.editor = editor!)}
             schema={SCHEMA}
             autoCorrect={false}
             readOnly={this.props.disabled}

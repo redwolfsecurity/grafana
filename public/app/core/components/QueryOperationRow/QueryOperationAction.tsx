@@ -1,12 +1,12 @@
 import { IconButton, IconName, stylesFactory, useTheme } from '@grafana/ui';
 import React from 'react';
-import { css } from 'emotion';
+import { css } from '@emotion/css';
 import { GrafanaTheme } from '@grafana/data';
 import { selectors } from '@grafana/e2e-selectors';
 
 interface QueryOperationActionProps {
   icon: IconName;
-  title?: string;
+  title: string;
   onClick: (e: React.MouseEvent) => void;
   disabled?: boolean;
 }

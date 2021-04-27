@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import * as React from 'react';
-import { css } from 'emotion';
+import { css } from '@emotion/css';
 
 import ListView from './ListView';
 import SpanBarRow from './SpanBarRow';
@@ -29,10 +29,11 @@ import {
 import { Accessors } from '../ScrollManager';
 import { getColorByKey } from '../utils/color-generator';
 import { TNil } from '../types';
-import { TraceLog, TraceSpan, Trace, TraceKeyValuePair, TraceLink } from '@grafana/data';
+import { TraceLog, TraceSpan, Trace, TraceKeyValuePair, TraceLink } from '../types/trace';
 import TTraceTimeline from '../types/TTraceTimeline';
 
 import { createStyle, Theme, withTheme } from '../Theme';
+import { CreateSpanLink } from './types';
 
 type TExtractUiFindFromStateReturn = {
   uiFind: string | undefined;
@@ -68,6 +69,7 @@ type TVirtualizedTraceViewOwnProps = {
   detailLogItemToggle: (spanID: string, log: TraceLog) => void;
   detailLogsToggle: (spanID: string) => void;
   detailWarningsToggle: (spanID: string) => void;
+  detailStackTracesToggle: (spanID: string) => void;
   detailReferencesToggle: (spanID: string) => void;
   detailProcessToggle: (spanID: string) => void;
   detailTagsToggle: (spanID: string) => void;
@@ -78,6 +80,8 @@ type TVirtualizedTraceViewOwnProps = {
   addHoverIndentGuideId: (spanID: string) => void;
   removeHoverIndentGuideId: (spanID: string) => void;
   theme: Theme;
+  createSpanLink?: CreateSpanLink;
+  scrollElement?: Element;
 };
 
 type VirtualizedTraceViewProps = TVirtualizedTraceViewOwnProps & TExtractUiFindFromStateReturn & TTraceTimeline;
@@ -185,7 +189,7 @@ export class UnthemedVirtualizedTraceView extends React.Component<VirtualizedTra
     return false;
   }
 
-  componentWillUpdate(nextProps: VirtualizedTraceViewProps) {
+  UNSAFE_componentWillUpdate(nextProps: VirtualizedTraceViewProps) {
     const { childrenHiddenIDs, detailStates, registerAccessors, trace, currentViewRangeTime } = this.props;
     const {
       currentViewRangeTime: nextViewRangeTime,
@@ -329,6 +333,7 @@ export class UnthemedVirtualizedTraceView extends React.Component<VirtualizedTra
       addHoverIndentGuideId,
       removeHoverIndentGuideId,
       theme,
+      createSpanLink,
     } = this.props;
     // to avert flow error
     if (!trace) {
@@ -378,6 +383,7 @@ export class UnthemedVirtualizedTraceView extends React.Component<VirtualizedTra
           hoverIndentGuideIds={hoverIndentGuideIds}
           addHoverIndentGuideId={addHoverIndentGuideId}
           removeHoverIndentGuideId={removeHoverIndentGuideId}
+          createSpanLink={createSpanLink}
         />
       </div>
     );
@@ -392,6 +398,7 @@ export class UnthemedVirtualizedTraceView extends React.Component<VirtualizedTra
       detailProcessToggle,
       detailReferencesToggle,
       detailWarningsToggle,
+      detailStackTracesToggle,
       detailStates,
       detailTagsToggle,
       detailToggle,
@@ -403,6 +410,7 @@ export class UnthemedVirtualizedTraceView extends React.Component<VirtualizedTra
       removeHoverIndentGuideId,
       linksGetter,
       theme,
+      createSpanLink,
     } = this.props;
     const detailState = detailStates.get(spanID);
     if (!trace || !detailState) {
@@ -423,6 +431,7 @@ export class UnthemedVirtualizedTraceView extends React.Component<VirtualizedTra
           processToggle={detailProcessToggle}
           referencesToggle={detailReferencesToggle}
           warningsToggle={detailWarningsToggle}
+          stackTracesToggle={detailStackTracesToggle}
           span={span}
           tagsToggle={detailTagsToggle}
           traceStartTime={trace.startTime}
@@ -430,6 +439,7 @@ export class UnthemedVirtualizedTraceView extends React.Component<VirtualizedTra
           hoverIndentGuideIds={hoverIndentGuideIds}
           addHoverIndentGuideId={addHoverIndentGuideId}
           removeHoverIndentGuideId={removeHoverIndentGuideId}
+          createSpanLink={createSpanLink}
         />
       </div>
     );
@@ -437,6 +447,7 @@ export class UnthemedVirtualizedTraceView extends React.Component<VirtualizedTra
 
   render() {
     const styles = getStyles();
+    const { scrollElement } = this.props;
     return (
       <div>
         <ListView
@@ -444,12 +455,13 @@ export class UnthemedVirtualizedTraceView extends React.Component<VirtualizedTra
           dataLength={this.rowStates.length}
           itemHeightGetter={this.getRowHeight}
           itemRenderer={this.renderRow}
-          viewBuffer={300}
-          viewBufferMin={100}
+          viewBuffer={50}
+          viewBufferMin={50}
           itemsWrapperClassName={styles.rowsWrapper}
           getKeyFromIndex={this.getKeyFromIndex}
           getIndexFromKey={this.getIndexFromKey}
-          windowScroller
+          windowScroller={false}
+          scrollElement={scrollElement}
         />
       </div>
     );

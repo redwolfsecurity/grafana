@@ -1,9 +1,9 @@
 import React, { PureComponent } from 'react';
-import { User, UserOrg } from 'app/types';
+import { UserDTO, UserOrg } from 'app/types';
 import { LoadingPlaceholder, Button } from '@grafana/ui';
 
 export interface Props {
-  user: User;
+  user: UserDTO;
   orgs: UserOrg[];
   isLoading: boolean;
   loadOrgs: () => void;
@@ -44,7 +44,9 @@ export class UserOrganizations extends PureComponent<Props> {
                         <td>{org.role}</td>
                         <td className="text-right">
                           {org.orgId === user.orgId ? (
-                            <span className="btn btn-primary btn-small">Current</span>
+                            <Button variant="secondary" size="sm" disabled>
+                              Current
+                            </Button>
                           ) : (
                             <Button
                               variant="secondary"

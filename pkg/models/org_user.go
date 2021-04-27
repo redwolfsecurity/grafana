@@ -9,10 +9,9 @@ import (
 
 // Typed errors
 var (
-	ErrInvalidRoleType     = errors.New("Invalid role type")
-	ErrLastOrgAdmin        = errors.New("Cannot remove last organization admin")
-	ErrOrgUserNotFound     = errors.New("Cannot find the organization user")
-	ErrOrgUserAlreadyAdded = errors.New("User is already added to organization")
+	ErrLastOrgAdmin        = errors.New("cannot remove last organization admin")
+	ErrOrgUserNotFound     = errors.New("cannot find the organization user")
+	ErrOrgUserAlreadyAdded = errors.New("user is already added to organization")
 )
 
 type RoleType string
@@ -39,6 +38,17 @@ func (r RoleType) Includes(other RoleType) bool {
 	return r == other
 }
 
+func (r RoleType) Children() []RoleType {
+	switch r {
+	case ROLE_ADMIN:
+		return []RoleType{ROLE_EDITOR, ROLE_VIEWER}
+	case ROLE_EDITOR:
+		return []RoleType{ROLE_VIEWER}
+	default:
+		return nil
+	}
+}
+
 func (r *RoleType) UnmarshalJSON(data []byte) error {
 	var str string
 	err := json.Unmarshal(data, &str)
@@ -48,7 +58,7 @@ func (r *RoleType) UnmarshalJSON(data []byte) error {
 
 	*r = RoleType(str)
 
-	if !(*r).IsValid() {
+	if !r.IsValid() {
 		if (*r) != "" {
 			return fmt.Errorf("JSON validation error: invalid role value: %s", *r)
 		}
