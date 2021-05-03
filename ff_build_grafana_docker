@@ -1,4 +1,4 @@
 #!/bin/bash
 
 # make build-docker-full
-docker build . --tag ff/grafana:latest
+docker build . --tag ff_grafana:latest

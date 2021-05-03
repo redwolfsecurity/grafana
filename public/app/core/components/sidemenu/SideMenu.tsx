@@ -14,12 +14,16 @@ export const SideMenu: FC = React.memo(() => {
   const location = useLocation();
   const query = new URLSearchParams(location.search);
   const kiosk = query.get('kiosk') as KioskMode;
+  const hide_sidebar = query.get('hide_sidebar');
 
   const toggleSideMenuSmallBreakpoint = useCallback(() => {
     appEvents.emit(CoreEvents.toggleSidemenuMobile);
   }, []);
 
   if (kiosk !== null) {
+    return null;
+  }
+  if (hide_sidebar !== null) {
     return null;
   }
 
