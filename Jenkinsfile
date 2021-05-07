@@ -47,6 +47,10 @@ pipeline {
                         sh 'docker tag $PROJECT_NAME:$BUILD_TAG $REGISTRY_HOST/$PROJECT_NAME:staging'
                         sh 'docker push $REGISTRY_HOST/$PROJECT_NAME:staging'
                         sh 'docker rmi $REGISTRY_HOST/$PROJECT_NAME:staging'
+                    } else if (env.BRANCH_NAME == 'stable') {
+                        sh 'docker tag $PROJECT_NAME:$BUILD_TAG $REGISTRY_HOST/$PROJECT_NAME:stable'
+                        sh 'docker push $REGISTRY_HOST/$PROJECT_NAME:stable'
+                        sh 'docker rmi $REGISTRY_HOST/$PROJECT_NAME:stable'
                     } else {
                         sh 'docker tag $PROJECT_NAME:$BUILD_TAG $REGISTRY_HOST/$PROJECT_NAME:$VERSION'
                         sh 'docker push $REGISTRY_HOST/$PROJECT_NAME:$VERSION'
