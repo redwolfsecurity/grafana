@@ -82,7 +82,7 @@ COPY --from=js-builder /usr/src/app/tools ./tools
 EXPOSE 3000
 
 COPY ./packaging/docker/run.sh /run.sh
-COPY ./ff_docker_entry /ff_run
+COPY ./ff_docker_entry /ff_run.sh
 
 USER grafana
 ENTRYPOINT [ "/ff_run.sh" ]
