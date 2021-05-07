@@ -8,6 +8,10 @@
   }
 }
 
+.view-mode--hide-sidebar {
+  display: none !important;
+}
+
 .view-mode--tv {
   @extend .view-mode--inactive;
 

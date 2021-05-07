@@ -168,6 +168,7 @@ export function grafanaAppDirective(
     controller: GrafanaCtrl,
     link: (scope: IRootScopeService & AppEventEmitter, elem: JQuery) => {
       const body = $('body');
+      const side_menu = $('.sidemenu');
       // see https://github.com/zenorocha/clipboard.js/issues/155
       $.fn.modal.Constructor.prototype.enforceFocus = () => {};
 
@@ -214,9 +215,9 @@ export function grafanaAppDirective(
 
         // check for hide_sidebar url param
         if (data.params.hide_sidebar != null) {
-          body.addClass('view-mode--tv');
+          side_menu.addClass('view-mode--hide-sidebar');
         } else {
-          body.removeClass('view-mode--tv');
+          side_menu.removeClass('view-mode--hide-sidebar');
         }
 
         // close all drops
@@ -253,9 +254,9 @@ export function grafanaAppDirective(
         setViewModeBodyClass(body, search.kiosk!);
         // check for hide_sidebar url param
         if (search.hide_sidebar != null) {
-          body.addClass('view-mode--tv');
+          side_menu.addClass('view-mode--hide-sidebar');
         } else {
-          body.removeClass('view-mode--tv');
+          side_menu.removeClass('view-mode--hide-sidebar');
         }
       });
 
