@@ -9,12 +9,18 @@ import { Icon } from '@grafana/ui';
 
 const homeUrl = config.appSubUrl || '/';
 
+const query = new URLSearchParams(location.search);
+const hide_sidebar = query.get('hide_sidebar');
+
 export class SideMenu extends PureComponent {
   toggleSideMenuSmallBreakpoint = () => {
     appEvents.emit(CoreEvents.toggleSidemenuMobile);
   };
 
   render() {
+    if (hide_sidebar !== null) {
+      return null;
+    }
     return [
       <a href={homeUrl} className="sidemenu__logo" key="logo">
         <Branding.MenuLogo />

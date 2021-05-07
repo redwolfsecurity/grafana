@@ -1,0 +1,4 @@
+# A storybook is what grafana uses to manage it's design system and components
+# Documentation here: https://storybook.js.org/tutorials/intro-to-storybook/react/en/get-started/
+# Launch the storybook app at http://localhost:9001/
+yarn storybook

@@ -1,0 +1,5 @@
+#!/bin/bash
+
+
+# build and run the backend (available at http://localhost:3000/)
+make run

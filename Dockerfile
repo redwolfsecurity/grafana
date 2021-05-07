@@ -5,6 +5,8 @@ WORKDIR /usr/src/app/
 COPY package.json yarn.lock ./
 COPY packages packages
 
+RUN apk --no-cache add git
+RUN yarn cache clean
 RUN yarn install --pure-lockfile --no-progress
 
 COPY tsconfig.json .eslintrc .editorconfig .browserslistrc .prettierrc.js ./
@@ -80,6 +82,7 @@ COPY --from=js-builder /usr/src/app/tools ./tools
 EXPOSE 3000
 
 COPY ./packaging/docker/run.sh /run.sh
+COPY ./ff_docker_entry /ff_run
 
 USER grafana
-ENTRYPOINT [ "/run.sh" ]
+ENTRYPOINT [ "/ff_run.sh" ]

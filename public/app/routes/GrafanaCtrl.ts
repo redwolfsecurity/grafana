@@ -212,6 +212,13 @@ export function grafanaAppDirective(
         // check for kiosk url param
         setViewModeBodyClass(body, data.params.kiosk);
 
+        // check for hide_sidebar url param
+        if (data.params.hide_sidebar != null) {
+          body.addClass('view-mode--tv');
+        } else {
+          body.removeClass('view-mode--tv');
+        }
+
         // close all drops
         for (const drop of Drop.drops) {
           drop.destroy();
@@ -220,7 +227,7 @@ export function grafanaAppDirective(
 
       // handle kiosk mode
       appEvents.on(CoreEvents.toggleKioskMode, (options: { exit?: boolean }) => {
-        const search: { kiosk?: KioskUrlValue } = $location.search();
+        const search: { kiosk?: KioskUrlValue; hide_sidebar?: any } = $location.search();
 
         if (options && options.exit) {
           search.kiosk = '1';
@@ -244,6 +251,12 @@ export function grafanaAppDirective(
 
         $timeout(() => $location.search(search));
         setViewModeBodyClass(body, search.kiosk!);
+        // check for hide_sidebar url param
+        if (search.hide_sidebar != null) {
+          body.addClass('view-mode--tv');
+        } else {
+          body.removeClass('view-mode--tv');
+        }
       });
 
       // handle in active view state class
