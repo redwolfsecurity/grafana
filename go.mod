@@ -91,13 +91,13 @@ require (
 	go.opentelemetry.io/collector v0.22.0
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
 	golang.org/x/exp v0.0.0-20210220032938-85be41e4509f // indirect
-	golang.org/x/net v0.0.0-20210316092652-d523dce5a7f4
-	golang.org/x/oauth2 v0.0.0-20210402161424-2e8d93401602
+	golang.org/x/net v0.0.0-20210503060351-7fd8e65b6420
+	golang.org/x/oauth2 v0.0.0-20210514164344-f6687ab2804c
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/time v0.0.0-20201208040808-7e3f01d25324
 	gonum.org/v1/gonum v0.9.1
-	google.golang.org/api v0.44.0
-	google.golang.org/grpc v1.37.0
+	google.golang.org/api v0.47.0
+	google.golang.org/grpc v1.37.1
 	google.golang.org/protobuf v1.26.0
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/asn1-ber.v1 v1.0.0-20181015200546-f715ec2f112d // indirect
