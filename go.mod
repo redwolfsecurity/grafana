@@ -89,11 +89,11 @@ require (
 	github.com/xorcare/pointer v1.1.0
 	github.com/yudai/gojsondiff v1.0.0
 	go.opentelemetry.io/collector v0.22.0
-	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
+	golang.org/x/crypto v0.0.0-20210921155107-089bfa567519
 	golang.org/x/exp v0.0.0-20210220032938-85be41e4509f // indirect
-	golang.org/x/net v0.0.0-20210316092652-d523dce5a7f4
+	golang.org/x/net v0.8.0
 	golang.org/x/oauth2 v0.0.0-20210402161424-2e8d93401602
-	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
+	golang.org/x/sync v0.1.0
 	golang.org/x/time v0.0.0-20201208040808-7e3f01d25324
 	gonum.org/v1/gonum v0.9.1
 	google.golang.org/api v0.44.0
